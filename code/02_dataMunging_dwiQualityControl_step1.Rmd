@@ -1,0 +1,133 @@
+---
+title: "02_dataMunging_dwiQualityControl"
+date: "7/11/2020"
+output: html_document
+---
+
+We usea 3-step iterative methods of QC: automated failure from (1) dwiprep, (2) automated analysis of residuals in mrtrix and 5 outputs from eddy, (3) and manual/visual QC.
+
+Note: this script does not yet include the automated failture from dwiprep (last 3 lines of pdf indicate PASS/FAIL)
+
+```{r setup, include=FALSE}
+
+#clean workspace
+rm(list=ls())
+
+#libraries
+libraries <- c('tidyverse', 'plyr', 'reshape2', 'ggplot2', 'ggfortify') 
+lapply(libraries, require, character.only = T) ; rm(libraries)
+
+#bring quality control data
+df_mrtrix <- read.csv('../outputs/imaging/qc_pns_mrtrixResidualNoise.txt', header=F, sep='', col.names = c('residual', 'id')) 
+df_eddy <- read.csv('../outputs/imaging/qc_spins_eddyMetrics.tsv', header=T, sep='\t') 
+
+```
+
+```{r data munging, warning=FALSE}
+
+#make sure residual values in spins are numeric...
+spins_mrtrix$residual <- as.numeric(spins_mrtrix$residual)
+
+#keep only cols we want
+mrtrix <- mrtrix[, c('record_id', 'residual')]
+
+#delete rows with NA residual
+mrtrix <- mrtrix[!is.na(mrtrix$residual),]
+
+#keep only unique rows
+mrtrix <- unique(mrtrix) 
+
+#keep only vars we want
+eddy <- eddy[, c('record_id', 'qc_mot_abs', 'qc_mot_rel', 'qc_outliers_pe', 'avg_snr_0', 'avg_cnr_1000')]
+
+#merge
+df <- merge(mrtrix, eddy, all=TRUE)
+
+#if blanks, turn to NA
+df[df== ''] <- NA
+
+```
+
+__Correlations__. For data exploration purposes, can investigate correlations between the 6 QC variables. Interestingly, `Residual noise` is not highly correlated with the eddy metrics; it seems to be contributing something unique. In our test applications, other correlations were as would be expected (e.g., high correlation between motion metrics).
+
+```{r quality control}
+
+#grab 6 variables of interest
+pca_vars <- df[, c(
+  "qc_mot_abs",         
+  "qc_mot_rel" ,         
+  "qc_outliers_pe" ,     
+  "avg_snr_0",           
+  "avg_cnr_1000",
+  "residual")]
+
+#rename the variables for the plot
+names(pca_vars) <-  c(
+  "Absolute motion", 
+  "Relative motion",
+  "Percent outliers",
+  "Average SNR",
+  "Average CNR", 
+  "Residual noise")
+
+#calculate correlation matrix
+corr <- round(cor(pca_vars, use = "pairwise.complete.obs"), 2)
+
+#melt the matrix
+corr <- melt(corr)
+
+#make plot
+ggplot(corr, aes(Var1, Var2, fill=value)) +
+  geom_tile() + 
+  theme(legend.position = 'none',
+        axis.title=element_blank(),
+        panel.background = element_blank()) +
+  geom_text(aes(Var1, Var2, label = value), color = "white", size = 4)
+
+```
+
+-----
+
+__PCA.__ We performed a PCA, to determine how many PCs are required to describe a substantial portion of the variance. In our applications to SPINS, HCP, and POND data, we found that the first PC is the eddy metrics, and the second is the mrtrix. <u>We decided to include the first PC value across all 6 DWI QC metrics as a regressor for subsequent analyses.</u>
+
+```{r}
+
+#perform PCA 
+(pca <- prcomp(pca_vars, center = TRUE, scale. = TRUE))
+
+#review importance of components
+summary(pca)
+
+# visualize in plot
+pcaPlot_fn <- function(pca_vars){
+autoplot(prcomp(pca_vars, center = TRUE, scale. = TRUE),
+         df, size=4.5, alpha=.6,
+         loadings = TRUE,
+         loadings.label = TRUE, loadings.label.size = 4, 
+         loadings.colour='black', loadings.label.colour='black') +
+  theme(legend.position='none',
+        panel.background = element_blank()) +
+  xlim(-.3,.3)
+}
+
+#run function (and if you want, drop vars and review)
+pcaPlot_fn(pca_vars)
+
+```
+
+```{r}
+
+#get the PC scores for all participants, to to DF
+cols <- rapply(pca, classes = 'matrix', how = 'list', f = function(x) x[, 1, drop = FALSE]) 
+pca_col <- as.vector(cols$x)
+
+#add PC1 to df
+df$qc_PC1 <- pca_col
+
+
+
+#write out data
+write.csv(df, paste0('../csvs/modified/df_dwiQC_', Sys.Date(), '.csv', sep=''), row.names = F) #wide format
+
+```
+
