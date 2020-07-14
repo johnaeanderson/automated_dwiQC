@@ -1,6 +1,6 @@
 
-<center>__AUTOMATED QC OF DWI DATA__</center>  
-<center>_as delinated by the Kimel TIGRlab DWI working group (2019)_ </center>
+<font size = 4><b>AUTOMATED QC OF DWI DATA</b></font>
+<font size = 3>b>as delinated by the Kimel TIGRlab DWI working group (2019) </b></font>
 
 We tested on HCP, POND, and SPINS. Found high agreement between automated ratings on the basis of these thresholds, and human visual review, the latter including review of the same metrics, and a comprehensive visual review of DWI volume data.
 
