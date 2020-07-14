@@ -1,7 +1,7 @@
 
  
-<p align=center> AUTOMATED QC OF DWI DATA </p>
-<p align=center> as delinated by the Kimel TIGRlab DWI working group <p align=center>
+<p align=center> <b>AUTOMATED QC OF DWI DATA </p>
+ <p align=center> as delinated by the Kimel TIGRlab DWI working group </b> </p>
 
 We tested on HCP, POND, and SPINS. Found high agreement between automated ratings on the basis of these thresholds, and human visual review, the latter including review of the same metrics, and a comprehensive visual review of DWI volume data.
 
@@ -9,7 +9,7 @@ We tested on HCP, POND, and SPINS. Found high agreement between automated rating
 
 -----
 
-Repo Contents
+<p align=center><b>Repo Contents</p></b>
 
 `code`
 - `01.Rmd`. This script performs two tasks. First, it examines the correlations between the 6 QC metrics. The intent is to ensure that, on a global level, there are no unexpected associations between quality metrics.  Second, it performs PCA. The intent to to generate a 'quality regressor' that can be used in subsequent analyses, assuming the first one or two PCs capture a large proportion of variance. 
@@ -27,8 +27,6 @@ Repo Contents
 -----
 
 __Examples__. When knitted in RStudio, `01.Rmd` should generate a report similar to the one [here](https://rpubs.com/navona/SPINS_DWI_QCeddyMRTrix), and `02.Rmd` as [here](https://rpubs.com/navona/SPINS_DWI_QCautomated). 
-
------
 
 
 __References__.
