@@ -1,7 +1,8 @@
 ---
 title: |
-  | Automated QC of SPINS DWI 
-  | with `eddy quad` and `MRTrix`
+  | Automated QC of DWI 
+  | with `eddy quad` and `MRTrix` metrics
+  | Step 2 of 2
 output:
   html_document:
     code_folding: hide
@@ -20,18 +21,15 @@ rm(list = ls(all.names = TRUE))
 
 #load libraries
 libraries <- c('ggplot2', 'reshape2', 'tidyverse', 'ggrepel', 'kableExtra') 
-lapply(libraries, require, character.only = T) 
+lapply(libraries, require, character.only = T) ; rm(libraries)
 
 #bring in data
-df <- read.csv(dir('../csvs/modified', full.names=T, pattern="^df_dwiQC")) #422
+df <- read.csv(dir('../data/output', full.names=T, pattern="^df_dwiQC_PC")) 
 
 ```
 
 <br>
-__Description.__ This script summarizes key QC metrics from the automated `eddy QC` tools, i.e., the eddy quad PDFs (Bastiani et al., _NeuroImage_, 2019), and `MRTrix` for the n=`r nrow(df)` participants who are eligible for inclusion.
-
-<br>
-__Thresholds for key eddy QC metrics.__ Our DWI working group suggested thresholds for key QC metrics, on the basis of analysis of subsets of the SPINS, POND, and HCP datasets. These thresholds were found to reliably predict a number of different visual QC ratings from different raters. The suggested thresholds were as follows:
+__Description.__ This script summarizes key QC metrics from `eddy quad` and `MRTrix`. Our DWI working group suggested thresholds for key QC metrics, on the basis of analysis of subsets of the SPINS, POND, and HCP datasets. These thresholds were found to reliably predict a number of different visual QC ratings from 5 independent raters (Natlie, Grace, Hajer, John, Navona). The suggested thresholds were as follows:
 
 ```{r thresholds, echo=FALSE, message=FALSE}
 
@@ -99,7 +97,7 @@ df %>% ggplot(aes(x=factor(0), y = get(yvar))) +
   
   #add a label to outliers
   geom_label_repel(data = subset(df, operator_fn(get(yvar), threshold)),
-      aes(label = record_id), segment.colour = 'black', nudge_x =.2)
+      aes(label = subject_id), segment.colour = 'black', nudge_x =.2)
 
 }
 
@@ -123,40 +121,40 @@ qcPlot_fn('qc_outliers_pe', 2, '>=')
 
 ###Average SNR
 ```{r echo=FALSE, warning=FALSE, fig.width=9.5, message=FALSE}
-qcPlot_fn('qc_avg_snr',  20, '<=')
+qcPlot_fn('avg_snr_0',  20, '<=')
 ```
 
 ###Average CNR
 ```{r echo=FALSE, warning=FALSE, fig.width=9.5, message=FALSE}
-qcPlot_fn('qc_avg_cnr', 1.5, '<=')
+qcPlot_fn('avg_cnr_1000', 1.5, '<=')
 ```
 
 ###Residual noise 
 ```{r echo=FALSE, warning=FALSE, fig.width=9.5, message=FALSE}
-qcPlot_fn('qc_residual', 6, '>=')
+qcPlot_fn('residual', 6, '>=')
 ```
 </div>
 
 -----
 
-```{r data munging to set thresholds echo=FALSE, message=FALSE, results='hide'}
+```{r threshold munging, echo=FALSE, message=FALSE, results='hide'}
 
 #make columns to indicate PASS/FAIL on basis of working group recommendations
  df$qc_eval_mot_abs <- ifelse(df$qc_mot_abs >= 2, 1, 0)
  df$qc_eval_mot_rel <- ifelse(df$qc_mot_rel >= .5,  1, 0)
  df$qc_eval_outliers_pe <- ifelse(df$qc_outliers_pe >= 2,  1, 0)
- df$qc_eval_avg_snr <- ifelse(df$qc_avg_snr <= 20,  1, 0)
- df$qc_eval_avg_cnr <- ifelse(df$qc_avg_cnr <= 1.5,  1, 0)
- df$qc_eval_residual <- ifelse(df$qc_residual >= 6,  1, 0)
+ df$qc_eval_avg_snr_0 <- ifelse(df$avg_snr_0 <= 20,  1, 0)
+ df$qc_eval_avg_cnr_1000 <- ifelse(df$avg_cnr_1000 <= 1.5,  1, 0)
+ df$qc_eval_residual <- ifelse(df$residual >= 6,  1, 0)
 
-#make global FAIL count
+#make column with global FAIL count
 df$qc_score <- rowSums(df[, grep('eval', colnames(df))])
 
-#identify participants with score of 2 or more -- these participants will be removed
-exclude_qc <- paste('DWI_quality', df$record_id[which(df$qc_score >= 2)])
+#identify participants with score of 2 or more -- these participants should be closely reviewed/ removed from later anlayses
+exclude_qc <- paste('DWI_quality', df$subject_id[which(df$qc_score >= 2)])
 
 #write out names for removal from future analyses
-write(exclude_qc, file = "..data/output/excludeParticipants.txt",
+write(exclude_qc, file = "../data/output/excludeParticipants.txt",
       ncolumns = 1,
       append = TRUE, sep = " ")
 
@@ -179,12 +177,12 @@ df %>%
     qc_mot_abs = cell_spec(qc_mot_abs, "html", color='white', background=ifelse(qc_mot_abs >=.2, "red", "green")),
     qc_mot_rel = cell_spec(qc_mot_rel, "html", color='white', background=ifelse(qc_mot_rel >= .5, "red", "green")),
     qc_outliers_pe = cell_spec(qc_outliers_pe, "html", color='white', background=ifelse(qc_outliers_pe >=2, "red", "green")),
-    qc_avg_snr = cell_spec(qc_avg_snr, "html", color='white', background=ifelse(qc_avg_snr <=20, "red", "green")),
-    qc_avg_cnr = cell_spec(qc_avg_cnr, "html", color='white', background=ifelse(qc_avg_cnr <=1.5, "red", "green")),
-    qc_residual = cell_spec(qc_residual, "html", color='white', background=ifelse(qc_residual >=6, "red", "green"))) %>%
-  select(record_id,
+    avg_snr_0 = cell_spec(avg_snr_0, "html", color='white', background=ifelse(avg_snr_0 <=20, "red", "green")),
+    avg_cnr_1000 = cell_spec(avg_cnr_1000, "html", color='white', background=ifelse(avg_cnr_1000 <=1.5, "red", "green")),
+    residual = cell_spec(residual, "html", color='white', background=ifelse(residual >=6, "red", "green"))) %>%
+  select(subject_id,
          qc_mot_abs, qc_mot_rel, qc_outliers_pe,
-         qc_avg_snr, qc_avg_cnr, qc_residual, qc_score) %>%
+         avg_snr_0, avg_cnr_1000, residual, qc_score) %>%
   kable(format='html', escape=F, align='c', 
         col.names = c('Participant', 'Absolute motion', 'Relative motion', 'Percent outliers', 'Average SNR', 'Average CNR', 'Residual noise', 'Flag count')) %>%
   kable_styling('striped')

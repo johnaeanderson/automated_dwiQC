@@ -1,54 +1,49 @@
 ---
-title: "02_dataMunging_dwiQualityControl"
-date: "7/11/2020"
-output: html_document
+title: |
+  | Automated QC of DWI 
+  | with `eddy quad` and `MRTrix` metrics
+  | Step 1 of 2
+output:
+  html_document:
+    code_folding: hide
+
 ---
 
-We usea 3-step iterative methods of QC: automated failure from (1) dwiprep, (2) automated analysis of residuals in mrtrix and 5 outputs from eddy, (3) and manual/visual QC.
+code written: 2020-07-12     
+last ran: `r Sys.Date()`   
 
-Note: this script does not yet include the automated failture from dwiprep (last 3 lines of pdf indicate PASS/FAIL)
+-----
 
 ```{r setup, include=FALSE}
 
 #clean workspace
 rm(list=ls())
 
-#libraries
-libraries <- c('tidyverse', 'plyr', 'reshape2', 'ggplot2', 'ggfortify') 
+#load ibraries
+libraries <- c('tidyverse', 'reshape2', 'ggplot2', 'ggfortify') 
 lapply(libraries, require, character.only = T) ; rm(libraries)
 
-#bring quality control data
-df_mrtrix <- read.csv('../outputs/imaging/qc_pns_mrtrixResidualNoise.txt', header=F, sep='', col.names = c('residual', 'id')) 
-df_eddy <- read.csv('../outputs/imaging/qc_spins_eddyMetrics.tsv', header=T, sep='\t') 
+#bring in data 
+mrtrix <- read.csv('../data/input/mrtrixResidualNoise.txt', header=F, sep='', col.names = c('residual', 'record_id')) 
+eddy <- read.csv('../data/input/eddyMetrics.tsv', header=T, sep='\t') 
 
 ```
 
 ```{r data munging, warning=FALSE}
 
-#make sure residual values in spins are numeric...
-spins_mrtrix$residual <- as.numeric(spins_mrtrix$residual)
+#merge the variables we are interested in
+df <- merge(eddy[, c('subject_id', 'qc_mot_abs', 'qc_mot_rel', 'qc_outliers_pe', 'avg_snr_0', 'avg_cnr_1000')], mrtrix, 
+            by.x='subject_id', by.y='record_id', all=TRUE)
 
-#keep only cols we want
-mrtrix <- mrtrix[, c('record_id', 'residual')]
-
-#delete rows with NA residual
-mrtrix <- mrtrix[!is.na(mrtrix$residual),]
-
-#keep only unique rows
-mrtrix <- unique(mrtrix) 
-
-#keep only vars we want
-eddy <- eddy[, c('record_id', 'qc_mot_abs', 'qc_mot_rel', 'qc_outliers_pe', 'avg_snr_0', 'avg_cnr_1000')]
-
-#merge
-df <- merge(mrtrix, eddy, all=TRUE)
+#make sure all values are numeric
+df[2:ncol(df)] <- sapply(df[2:ncol(df)],as.numeric)
 
 #if blanks, turn to NA
 df[df== ''] <- NA
 
 ```
 
-__Correlations__. For data exploration purposes, can investigate correlations between the 6 QC variables. Interestingly, `Residual noise` is not highly correlated with the eddy metrics; it seems to be contributing something unique. In our test applications, other correlations were as would be expected (e.g., high correlation between motion metrics).
+__Correlations__. For data exploration purposes, we can investigate correlations between the 6 QC variables. Interestingly, in our past analyses, `Residual noise` was found to be uncorrelated with the eddy metrics; it seems to be contributing something unique. In our past analyses, all other correlations were as would be expected (e.g., high correlation between motion metrics).
 
 ```{r quality control}
 
@@ -88,9 +83,9 @@ ggplot(corr, aes(Var1, Var2, fill=value)) +
 
 -----
 
-__PCA.__ We performed a PCA, to determine how many PCs are required to describe a substantial portion of the variance. In our applications to SPINS, HCP, and POND data, we found that the first PC is the eddy metrics, and the second is the mrtrix. <u>We decided to include the first PC value across all 6 DWI QC metrics as a regressor for subsequent analyses.</u>
+__PCA.__ We performed a PCA, to determine how many PCs are required to describe a substantial portion of the variance. In our applications to SPINS, HCP, and POND data, we found that the first PC is the `eddy` metrics, and the second is `MRTrix`. We decided to include the first PC value across all 6 DWI QC metrics as a regressor for subsequent analyses.
 
-```{r}
+```{r warning=FALSE}
 
 #perform PCA 
 (pca <- prcomp(pca_vars, center = TRUE, scale. = TRUE))
@@ -98,7 +93,7 @@ __PCA.__ We performed a PCA, to determine how many PCs are required to describe 
 #review importance of components
 summary(pca)
 
-# visualize in plot
+#visualize in plot
 pcaPlot_fn <- function(pca_vars){
 autoplot(prcomp(pca_vars, center = TRUE, scale. = TRUE),
          df, size=4.5, alpha=.6,
@@ -110,24 +105,20 @@ autoplot(prcomp(pca_vars, center = TRUE, scale. = TRUE),
   xlim(-.3,.3)
 }
 
-#run function (and if you want, drop vars and review)
+#run function 
 pcaPlot_fn(pca_vars)
 
 ```
 
 ```{r}
 
-#get the PC scores for all participants, to to DF
+#get the PC scores for all participants, into our df
 cols <- rapply(pca, classes = 'matrix', how = 'list', f = function(x) x[, 1, drop = FALSE]) 
 pca_col <- as.vector(cols$x)
-
-#add PC1 to df
 df$qc_PC1 <- pca_col
 
-
-
 #write out data
-write.csv(df, paste0('../csvs/modified/df_dwiQC_', Sys.Date(), '.csv', sep=''), row.names = F) #wide format
+write.csv(df, paste0('../data/output/df_dwiQC_PC_', Sys.Date(), '.csv', sep=''), row.names = F) 
 
 ```
 

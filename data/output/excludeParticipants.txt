@@ -1,0 +1,9 @@
+DWI_quality sub-SUB0006
+DWI_quality sub-SUB0029
+DWI_quality sub-SUB0063
+DWI_quality sub-SUB0006
+DWI_quality sub-SUB0029
+DWI_quality sub-SUB0063
+DWI_quality sub-SUB0006
+DWI_quality sub-SUB0029
+DWI_quality sub-SUB0063
